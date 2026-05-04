@@ -29,22 +29,18 @@ export default function UploadPage() {
     setUploading(true);
 
     try {
-      const upload = await api.initUpload({
-        filename: file.name,
-        content_type: file.type || "application/pdf",
-      });
+      const upload = await api.uploadDocument(file);
 
       upsertDocument({
         doc_id: upload.doc_id,
         filename: file.name,
-        s3_key: upload.s3_key,
+        file_path: upload.file_path,
         status: upload.status,
       });
 
-      await api.uploadFileToS3(upload.upload_url, file);
       const processResponse = await api.processDocument({
         doc_id: upload.doc_id,
-        s3_key: upload.s3_key,
+        file_path: upload.file_path,
         filename: file.name,
         async_processing: true,
       });
@@ -64,7 +60,7 @@ export default function UploadPage() {
         <p className="eyebrow">Ingestion Pipeline</p>
         <h2>Upload PDFs and turn them into a searchable knowledge base</h2>
         <p className="lead">
-          Files land in S3, get chunked and embedded in the background, then become available for grounded chat.
+          Files are stored locally, chunked and embedded in the background, then made available for grounded chat.
         </p>
         <FileDropzone disabled={uploading} onSelect={handleFileSelect} />
         {error ? <p className="error-text">{error}</p> : null}

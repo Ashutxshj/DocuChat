@@ -1,25 +1,65 @@
 # DocuChat Copilot
 
-DocuChat Copilot is a production-oriented AI SaaS starter for uploading PDFs, processing them into embeddings, and chatting against grounded document context with per-session memory.
+DocuChat Copilot is a document-grounded AI chat application for uploading PDFs, indexing them into a vector store, and asking questions against that content with session memory and source attribution.
+
+## Overview
+
+The app combines a FastAPI backend, a React frontend, Gemini for generation and embeddings, and ChromaDB for retrieval. Users upload PDFs, the system extracts and chunks text, stores embeddings locally, and answers questions using retrieved document context.
+
+## Features
+
+- PDF upload and local file storage
+- Background document processing
+- Chunking with overlap for retrieval quality
+- Gemini embeddings and grounded chat answers
+- ChromaDB vector search
+- Session-based chat memory
+- Source references tied to document name and page number
+- Multi-document querying from the chat workspace
+
+## Stack
+
+### Backend
+- FastAPI
+- Gemini API via `google-genai`
+- ChromaDB
+- PyPDF
+- Optional Redis for persistent memory
+
+### Frontend
+- React
+- Vite
+- Zustand
+
+### Storage
+- Local filesystem for uploaded PDFs
+- Local Chroma persistence for vectors
+- Local JSON metadata registry
 
 ## Architecture
 
-### Backend
-- `FastAPI` API with modular `routes`, `services`, `models`, and `utils`
-- `AWS S3` presigned uploads for PDF storage
-- `PyPDF` text extraction
-- `tiktoken`-based chunking with overlap
-- `OpenAI embeddings` for vectorization
-- `ChromaDB` persistent local vector store
-- `OpenAI responses API` for grounded RAG answers
-- `Redis` chat memory with in-memory fallback
+### Upload Flow
+- `POST /upload` accepts a PDF via multipart form upload
+- The backend stores the file under `LOCAL_STORAGE_PATH`
+- A document record is created with status metadata
 
-### Frontend
-- `React + Vite`
-- Functional components and hooks
-- `Zustand` state store
-- Drag-and-drop upload flow
-- Chat workspace with source cards and multi-document selection
+### Processing Flow
+- `POST /process` reads the saved file
+- PDF text is extracted page by page
+- Text is chunked into token windows with overlap
+- Gemini embeddings are generated
+- Chunks and metadata are stored in ChromaDB
+
+### Chat Flow
+- `POST /chat` embeds the user question
+- Top matching chunks are retrieved from ChromaDB
+- Gemini answers only from retrieved context
+- The response includes source labels and source document metadata
+
+### Memory
+- `GET /history` returns recent chat history for a session
+- If Redis is configured, memory survives backend restarts
+- If Redis is omitted, memory falls back to an in-process Python store
 
 ## Project Structure
 
@@ -39,107 +79,150 @@ frontend/
     store/
 ```
 
-## Backend Setup
+## Environment
 
-1. Create an S3 bucket and ensure the configured IAM user or role can run `s3:PutObject` and `s3:GetObject`.
-2. Copy [backend/.env.example](/C:/Users/Ashut/OneDrive/Desktop/Projects/DocuChat/backend/.env.example) to `backend/.env` and fill in:
-   - `OPENAI_API_KEY`
-   - `S3_BUCKET_NAME`
-   - `AWS_ACCESS_KEY_ID`
-   - `AWS_SECRET_ACCESS_KEY`
-   - `REDIS_URL` if you want persistent memory
-3. Install backend dependencies:
+The backend reads `backend/.env`.
 
-```bash
+Minimal backend config:
+
+```env
+APP_ENV=development
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_CHAT_MODEL=gemini-2.5-flash
+GEMINI_EMBEDDING_MODEL=gemini-embedding-001
+LOCAL_STORAGE_PATH=./app/data/uploads
+CHROMA_PERSIST_DIRECTORY=./app/data/chroma
+CHROMA_COLLECTION_NAME=docuchat_chunks
+CHAT_MEMORY_WINDOW=10
+JWT_SECRET_KEY=
+JWT_ALGORITHM=HS256
+CHUNK_SIZE_TOKENS=800
+CHUNK_OVERLAP_TOKENS=100
+CORS_ORIGINS=["http://localhost:5173"]
+```
+
+Optional Redis:
+
+```env
+REDIS_URL=redis://localhost:6379/0
+```
+
+If you do not want Redis yet, leave that line out.
+
+Frontend config:
+
+```env
+VITE_API_BASE_URL=http://localhost:8000
+VITE_DEFAULT_USER_ID=demo-user
+```
+
+## Data Storage
+
+Current storage is intentionally simple:
+
+- Uploaded PDFs are stored locally
+- Chroma vectors are persisted locally
+- Document metadata is stored in `documents.json`
+- Chat memory uses Redis if configured, otherwise in-memory storage
+
+You do not need Supabase or another hosted database to run the current version.
+
+## UX Notes
+
+- Assistant answers are formatted for readability with paragraphs and lists
+- The source panel shows document names and page numbers instead of raw chunk text
+- The chat workspace is styled as a modern AI assistant interface
+
+## Run The Project
+
+### 1. Prepare Backend Env
+
+Create `backend/.env` from `backend/.env.example`.
+
+If Redis is not running, do not include `REDIS_URL`.
+
+### 2. Start Backend on Windows PowerShell
+
+Open PowerShell in `backend` and run:
+
+```powershell
 cd backend
 python -m venv .venv
-.venv\Scripts\activate
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
 pip install -r requirements.txt
+python -m uvicorn app.main:app --reload
 ```
 
-4. Start the API:
+If your prompt already shows `(.venv)`, the environment is active and you do not need to activate it again.
 
-```bash
-uvicorn app.main:app --reload
+If activation causes trouble, run without activation:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install --upgrade pip
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload
 ```
 
-## Frontend Setup
+Backend URLs:
 
-1. Copy [frontend/.env.example](/C:/Users/Ashut/OneDrive/Desktop/Projects/DocuChat/frontend/.env.example) to `frontend/.env`.
-2. Install dependencies and run:
+```text
+http://localhost:8000
+http://localhost:8000/health
+```
 
-```bash
+### 3. Start Frontend
+
+Open a second terminal and run:
+
+```powershell
 cd frontend
 npm install
 npm run dev
 ```
 
-3. Open `http://localhost:5173`.
+Frontend URL:
 
-## API Endpoints
-
-- `POST /upload`
-  - Returns a presigned S3 upload URL, `doc_id`, and `s3_key`
-- `POST /process`
-  - Starts or performs PDF extraction, chunking, embeddings, and Chroma indexing
-- `POST /chat`
-  - Accepts `question`, `session_id`, and selected `doc_ids`
-- `GET /history?session_id=...`
-  - Returns recent session history
-- `GET /documents/{doc_id}`
-  - Returns processing status used by the frontend poller
-- `GET /health`
-  - Basic readiness check
-
-## Local Docker
-
-1. Copy env examples:
-
-```bash
-copy backend\.env.example backend\.env
-copy frontend\.env.example frontend\.env
+```text
+http://localhost:5173
 ```
 
-2. Start the stack:
+### 4. Optional Redis
 
-```bash
-docker compose up --build
+If you want persistent chat memory, start Redis with Docker:
+
+```powershell
+docker run -d --name docuchat-redis -p 6379:6379 redis:7-alpine
 ```
 
-Services:
-- Frontend: `http://localhost:5173`
-- Backend: `http://localhost:8000`
-- Redis: `localhost:6379`
+Then set:
 
-## AWS Deployment Notes
+```env
+REDIS_URL=redis://localhost:6379/0
+```
 
-### Backend on ECS or EC2
-- Build the backend image from [backend/Dockerfile](/C:/Users/Ashut/OneDrive/Desktop/Projects/DocuChat/backend/Dockerfile)
-- Inject secrets via AWS Secrets Manager or SSM Parameter Store
-- Mount persistent storage for `backend/app/data` if you want Chroma persistence on a single instance
-- For multi-instance production, move Chroma to a shared vector service or a stateful deployment strategy
+If you are not using Redis, skip this step.
 
-### Frontend
-- Build the React app from [frontend/Dockerfile](/C:/Users/Ashut/OneDrive/Desktop/Projects/DocuChat/frontend/Dockerfile)
-- Serve through ECS, S3 + CloudFront, or an ALB-backed container
-- Set `VITE_API_BASE_URL` to the deployed FastAPI endpoint
+### 5. Use The App
 
-### S3 and CloudFront
-- Keep the upload bucket private
-- Use presigned URLs for direct browser uploads
-- Optionally place CloudFront in front of a separate download bucket or generated previews
+1. Start the backend
+2. Start the frontend
+3. Open `http://localhost:5173`
+4. Upload a PDF
+5. Wait until processing finishes
+6. Open the chat page
+7. Ask questions about the document
 
-## Production Notes
+### 6. Common Issues
 
-- Current document status tracking is file-backed via `backend/app/data/documents.json`
-- User isolation is handled through `X-User-Id` or optional JWT bearer parsing
-- Chat responses are grounded against retrieved chunks and return source metadata for UI display
-- Background processing is triggered with FastAPI `BackgroundTasks`
-
-## Next Hardening Steps
-
-- Replace file-backed document registry with PostgreSQL
-- Add proper auth flows and user persistence
-- Add rate limiting and structured request logging
-- Add streaming chat over SSE or WebSockets
-- Move Chroma to infrastructure that matches your scaling model
+- `uvicorn` not found:
+  `pip install` did not finish successfully, or you should run `python -m uvicorn app.main:app --reload`
+- PowerShell activation fails:
+  Use `.\.venv\Scripts\Activate.ps1`, not `.\venv\Scripts\activate`
+- Redis connection errors:
+  Remove `REDIS_URL` from `backend/.env` or start Redis locally
+- Gemini auth errors:
+  Your `GEMINI_API_KEY` is invalid, expired, or needs rotation
+- Frontend cannot connect:
+  Ensure backend is running on `http://localhost:8000`

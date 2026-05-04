@@ -10,16 +10,11 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/"
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
-    openai_api_key: str = ""
-    openai_chat_model: str = "gpt-4.1-mini"
-    openai_embedding_model: str = "text-embedding-3-small"
+    gemini_api_key: str = ""
+    gemini_chat_model: str = "gemini-2.5-flash"
+    gemini_embedding_model: str = "gemini-embedding-001"
 
-    aws_region: str = "us-east-1"
-    aws_access_key_id: str = ""
-    aws_secret_access_key: str = ""
-    s3_bucket_name: str = ""
-    s3_key_prefix: str = "documents"
-    presigned_url_expiry_seconds: int = 900
+    local_storage_path: str = "./app/data/uploads"
 
     chroma_persist_directory: str = "./app/data/chroma"
     chroma_collection_name: str = "docuchat_chunks"

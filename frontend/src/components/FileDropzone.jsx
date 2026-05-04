@@ -50,7 +50,7 @@ export default function FileDropzone({ disabled, onSelect }) {
         onChange={(event) => handleFiles(event.target.files)}
       />
       <p className="dropzone-title">Drop a PDF here</p>
-      <p className="dropzone-copy">or click to upload into your S3-backed workspace.</p>
+      <p className="dropzone-copy">or click to upload into your local workspace.</p>
     </div>
   );
 }

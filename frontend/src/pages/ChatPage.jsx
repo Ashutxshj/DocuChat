@@ -79,6 +79,15 @@ export default function ChatPage() {
       </aside>
 
       <div className="chat-main">
+        <section className="panel workspace-summary">
+          <div>
+            <p className="eyebrow">Workspace</p>
+            <h2>{activeDocIds.length ? "Multi-document reasoning ready" : "Select documents to begin"}</h2>
+            <p className="lead">
+              Ask for summaries, comparisons, action items, timelines, or grounded answers from your uploaded PDFs.
+            </p>
+          </div>
+        </section>
         <ChatWindow
           messages={messages}
           draft={draft}

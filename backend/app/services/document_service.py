@@ -3,9 +3,9 @@ from __future__ import annotations
 import logging
 from uuid import uuid4
 
-from fastapi import BackgroundTasks, HTTPException
+from fastapi import BackgroundTasks, HTTPException, UploadFile
 
-from app.models.schemas import ProcessRequest, ProcessResponse, UploadInitRequest, UploadInitResponse
+from app.models.schemas import ProcessRequest, ProcessResponse, UploadResponse
 from app.services.document_registry import document_registry
 from app.services.embedding_service import embedding_service
 from app.services.pdf_service import pdf_service
@@ -20,29 +20,24 @@ class DocumentService:
     def __init__(self) -> None:
         self.settings = get_settings()
 
-    async def initialize_upload(self, payload: UploadInitRequest, user_id: str) -> UploadInitResponse:
-        if payload.content_type != "application/pdf":
+    async def upload_document(self, file: UploadFile, user_id: str) -> UploadResponse:
+        if file.content_type != "application/pdf":
             raise HTTPException(status_code=400, detail="Only PDF uploads are supported")
-        if not self.settings.s3_bucket_name:
-            raise HTTPException(status_code=500, detail="S3 bucket is not configured")
 
         doc_id = str(uuid4())
-        sanitized_filename = payload.filename.replace(" ", "_")
-        s3_key = f"{self.settings.s3_key_prefix}/{user_id}/{doc_id}/{sanitized_filename}"
-        upload_url = await storage_service.create_upload_url(s3_key, payload.content_type)
+        file_path = await storage_service.save_upload(user_id, doc_id, file)
         await document_registry.create_document(
             doc_id=doc_id,
             user_id=user_id,
-            filename=payload.filename,
-            s3_key=s3_key,
-            status="upload_pending",
+            filename=file.filename or "document.pdf",
+            file_path=file_path,
+            status="uploaded",
         )
-        return UploadInitResponse(
+        return UploadResponse(
             doc_id=doc_id,
-            s3_key=s3_key,
-            upload_url=upload_url,
-            expires_in=self.settings.presigned_url_expiry_seconds,
-            status="upload_pending",
+            file_path=file_path,
+            filename=file.filename or "document.pdf",
+            status="uploaded",
         )
 
     async def schedule_processing(
@@ -75,14 +70,17 @@ class DocumentService:
         await document_registry.update_document(payload.doc_id, status="processing", error=None)
         try:
             await vector_store_service.delete_document(user_id=user_id, doc_id=payload.doc_id)
-            pdf_bytes = await storage_service.download_file_bytes(payload.s3_key)
+            pdf_bytes = await storage_service.read_file_bytes(payload.file_path)
             pages = pdf_service.extract_pages(pdf_bytes)
             chunks = pdf_service.chunk_pages(pages)
 
             if not chunks:
                 raise ValueError("No extractable text found in PDF")
 
-            embeddings = await embedding_service.embed_texts([chunk["content"] for chunk in chunks])
+            embeddings = await embedding_service.embed_texts(
+                [chunk["content"] for chunk in chunks],
+                task_type="RETRIEVAL_DOCUMENT",
+            )
             ids = [f"{payload.doc_id}:{chunk['page_no']}:{chunk['chunk_index']}" for chunk in chunks]
             metadatas = [
                 {

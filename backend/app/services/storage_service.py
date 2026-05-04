@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any
+from pathlib import Path
 
-import boto3
+from fastapi import UploadFile
 
 from app.utils.config import get_settings
 
@@ -11,33 +11,21 @@ from app.utils.config import get_settings
 class StorageService:
     def __init__(self) -> None:
         settings = get_settings()
-        self.bucket_name = settings.s3_bucket_name
-        self.presigned_expiry = settings.presigned_url_expiry_seconds
-        self.client = boto3.client(
-            "s3",
-            region_name=settings.aws_region,
-            aws_access_key_id=settings.aws_access_key_id or None,
-            aws_secret_access_key=settings.aws_secret_access_key or None,
-        )
+        self.base_path = Path(settings.local_storage_path)
+        self.base_path.mkdir(parents=True, exist_ok=True)
 
-    async def create_upload_url(self, key: str, content_type: str) -> str:
-        return await asyncio.to_thread(
-            self.client.generate_presigned_url,
-            ClientMethod="put_object",
-            Params={
-                "Bucket": self.bucket_name,
-                "Key": key,
-                "ContentType": content_type,
-            },
-            ExpiresIn=self.presigned_expiry,
-        )
+    async def save_upload(self, user_id: str, doc_id: str, file: UploadFile) -> str:
+        filename = file.filename or "document.pdf"
+        user_dir = self.base_path / user_id / doc_id
+        user_dir.mkdir(parents=True, exist_ok=True)
+        target = user_dir / filename.replace(" ", "_")
+        content = await file.read()
+        await asyncio.to_thread(target.write_bytes, content)
+        return str(target)
 
-    async def download_file_bytes(self, key: str) -> bytes:
-        def _download() -> bytes:
-            response: dict[str, Any] = self.client.get_object(Bucket=self.bucket_name, Key=key)
-            return response["Body"].read()
-
-        return await asyncio.to_thread(_download)
+    async def read_file_bytes(self, file_path: str) -> bytes:
+        path = Path(file_path)
+        return await asyncio.to_thread(path.read_bytes)
 
 
 storage_service = StorageService()

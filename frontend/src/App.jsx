@@ -1,8 +1,11 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import { Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import UploadPage from "./pages/UploadPage";
 import ChatPage from "./pages/ChatPage";
 
 export default function App() {
+  const navigate = useNavigate();
+  const location = useLocation();
+
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -11,10 +14,20 @@ export default function App() {
           <h1>DocuChat Copilot</h1>
         </div>
         <nav className="nav-tabs">
-          <NavLink to="/" end>
+          <button
+            type="button"
+            className={location.pathname === "/" ? "active" : ""}
+            onClick={() => navigate("/")}
+          >
             Upload
-          </NavLink>
-          <NavLink to="/chat">Chat</NavLink>
+          </button>
+          <button
+            type="button"
+            className={location.pathname === "/chat" ? "active" : ""}
+            onClick={() => navigate("/chat")}
+          >
+            Chat
+          </button>
         </nav>
       </header>
 

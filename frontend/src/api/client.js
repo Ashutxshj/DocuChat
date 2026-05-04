@@ -20,11 +20,25 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  initUpload: (payload) =>
-    request("/upload", {
+  uploadDocument: async (file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`${API_BASE_URL}/upload`, {
       method: "POST",
-      body: JSON.stringify(payload),
-    }),
+      headers: {
+        "X-User-Id": DEFAULT_USER_ID,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorBody = await response.json().catch(() => ({}));
+      throw new Error(errorBody.detail || "Upload failed");
+    }
+
+    return response.json();
+  },
 
   processDocument: (payload) =>
     request("/process", {
@@ -41,18 +55,4 @@ export const api = {
     }),
 
   getHistory: (sessionId) => request(`/history?session_id=${encodeURIComponent(sessionId)}`),
-
-  uploadFileToS3: async (url, file) => {
-    const response = await fetch(url, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type || "application/pdf",
-      },
-      body: file,
-    });
-
-    if (!response.ok) {
-      throw new Error("S3 upload failed");
-    }
-  },
 };

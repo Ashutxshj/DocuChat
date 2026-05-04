@@ -21,7 +21,7 @@ class DocumentRegistry:
     async def _write(self, payload: dict[str, Any]) -> None:
         self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    async def create_document(self, doc_id: str, user_id: str, filename: str, s3_key: str, status: str) -> dict[str, Any]:
+    async def create_document(self, doc_id: str, user_id: str, filename: str, file_path: str, status: str) -> dict[str, Any]:
         async with self.lock:
             documents = await self._read()
             timestamp = datetime.now(timezone.utc).isoformat()
@@ -29,7 +29,7 @@ class DocumentRegistry:
                 "doc_id": doc_id,
                 "user_id": user_id,
                 "filename": filename,
-                "s3_key": s3_key,
+                "file_path": file_path,
                 "status": status,
                 "created_at": timestamp,
                 "updated_at": timestamp,

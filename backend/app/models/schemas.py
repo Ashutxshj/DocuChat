@@ -6,22 +6,16 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-class UploadInitRequest(BaseModel):
-    filename: str = Field(..., min_length=1)
-    content_type: str = Field(default="application/pdf")
-
-
-class UploadInitResponse(BaseModel):
+class UploadResponse(BaseModel):
     doc_id: str
-    s3_key: str
-    upload_url: str
-    expires_in: int
+    file_path: str
+    filename: str
     status: str
 
 
 class ProcessRequest(BaseModel):
     doc_id: str
-    s3_key: str
+    file_path: str
     filename: str
     async_processing: bool = True
 
@@ -42,9 +36,9 @@ class ChatRequest(BaseModel):
 class SourceReference(BaseModel):
     source_id: str
     doc_id: str
+    filename: str
     page_no: int
     chunk_index: int
-    snippet: str
     score: float | None = None
 
 
@@ -69,7 +63,7 @@ class DocumentStatusResponse(BaseModel):
     doc_id: str
     user_id: str
     filename: str
-    s3_key: str
+    file_path: str
     status: str
     created_at: datetime
     updated_at: datetime
