@@ -1,0 +1,10 @@
+.env
+backend/.env
+frontend/.env
+**/__pycache__/
+**/*.pyc
+backend/app/data/chroma/
+backend/app/data/documents.json
+frontend/dist/
+backend/.pytest_cache/
+node_modules/
